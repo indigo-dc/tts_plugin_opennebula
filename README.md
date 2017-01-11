@@ -1,2 +1,2 @@
-# tts_plugin_opennebula
-TTS Plugin for OpenNebula
+# watts_plugin_opennebula
+WaTTS Plugin for OpenNebula
