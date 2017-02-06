@@ -14,17 +14,28 @@ from xml.dom.minidom import parseString
 import sqlite3
 
 # URL of the XML-RPC API of the OpeNebula server
-ONE_API_ENDPOINT = "http://localhost:2633/RPC2"
+# ONE_API_ENDPOINT = "http://localhost:2633/RPC2"
 # User to access the API
-SESSIONID = "oneadmin:somepass"
+# SESSIONID = "oneadmin:somepass"
 # Group ID to add the users created
-USERS_GROUP = 105
+# USERS_GROUP = 105
 # DB to store the data about the users
 # IMPORTANT!!! Must be only accesible by the user which executes this script!!!
 # ALSO IMPORTANT!!! Must be only stored in persistent storage (be careful in containers)
-DB_USERS_FILENAME = "/tmp/users.db"
+# DB_USERS_FILENAME = "/tmp/users.db"
 # Prefix to add to all user names created
-USER_PREFIX = "tts"
+# USER_PREFIX = "tts"
+
+def list_params():
+    RequestParams = []
+    ConfParams = [{'name':'api_endpoint', 'type':'string', 'default':'http://localhost:2633/RPC2'},
+                  {'name':'sessionid', 'type':'string', 'default':'oneadmin:somepass'},
+                  {'name':'db_file', 'type':'string', 'default':'/tmp/users.db'},
+                  {'name':'user_prefix', 'type':'string', 'default':'watts'},
+                  {'name':'user_group', 'type':'string', 'default':'105'}
+                 ]
+    Version = "0.1.0"
+    return json.dumps({'result':'ok', 'conf_params': ConfParams, 'request_params': RequestParams, 'version':Version})
 
 
 def create_one_user(username, group, oidc, password):
@@ -174,7 +185,7 @@ def create_user(username, group, oidc):
         password = id_generator()
         success, userid = create_one_user(username, group, oidc, password)
         if not success:
-            return json.dumps({'error': 'Error creating user: %s' % userid})
+            return json.dumps({'result':'error', 'log_msg': 'Error creating user: %s' % userid})
 
         save_user_data(username, password)
     else:
@@ -190,14 +201,14 @@ def create_user(username, group, oidc):
             server = xmlrpclib.ServerProxy(ONE_API_ENDPOINT, allow_none=True)
             success, user, _ = server.one.user.passwd(SESSIONID, user_id, password)
             if not success:
-                return json.dumps({'error': 'Error setting user password: %s' % user})
+                return json.dumps({'result':'error', 'log_msg':'Error setting user password: %s' % user})
             else:
                 # And save in the DB
                 save_user_data(username, password)
 
     credential = [{'name': 'Username', 'type': 'text', 'value': username},
                   {'name': 'Password', 'type': 'text', 'value': password}]
-    return json.dumps({'credential': credential, 'state': username})
+    return json.dumps({'result':'ok', 'credential': credential, 'state': username})
 
 
 def revoke_user(username):
@@ -211,49 +222,70 @@ def revoke_user(username):
             delete_user_data(username)
             return json.dumps({'result': 'ok'})
         else:
-            return json.dumps({'error': msg})
+            usermsg = "revoke failed, please contact the administrator"
+            logmsg = "revoke issue with userid %s : %s"%{userid, msg}
+            return json.dumps({'result':'error', 'user_msg': usermsg, 'log_msg':logmsg})
     else:
         if userid == "":
             return json.dumps({'result': 'ok'})
         else:
-            return json.dumps({'error': userid})
+            usermsg = "revoke failed, please contact the administrator"
+            logmsg = "issue failed, user does not exist %s"%userid
+            return json.dumps({'result':'error', 'user_msg': usermsg, 'log_msg':logmsg})
 
 
 def process_request(request):
     """
-    Process the TTS request from the json data provided
+    Process the WaTTS request from the json data provided
     """
+    UserMsg = "Internal error, please contact the administrator"
     json_data = str(request) + '=' * (4 - len(request) % 4)
     jobject = json.loads(str(base64.urlsafe_b64decode(json_data)))
 
     action = jobject['action']
-    user_info = jobject['user_info']
-    oidc = user_info['oidc']
-    iss = urlparse.urlparse(oidc['iss'])
-    iss_host = iss[1]
-    username = "%s_%s_%s" % (USER_PREFIX, iss_host, oidc['sub'])
+    if action == "parameter":
+        print list_params()
 
-    if action == "request":
-        return create_user(username, USERS_GROUP, oidc)
-    elif action == "revoke":
-        state = jobject['cred_state']
-        if state != username:
-            return json.dumps({"error": "incorrect_state"})
-        else:
-            return revoke_user(state)
     else:
-        return json.dumps({"error": "unknown_action", "details": action})
+        confparams = jobject['conf_params']
+        user_info = jobject['user_info']
+        user_group = confparams['user_group']
+        user_prefix = confparams['user_prefix']
+
+
+        # oidc = user_info['oidc']
+        iss = urlparse.urlparse(user_info['iss'])
+        iss_host = iss[1]
+        username = "%s_%s_%s" % (user_prefix, iss_host, user_info['sub'])
+
+        if action == "request":
+            return create_user(username, user_group, user_info)
+        elif action == "revoke":
+            state = jobject['cred_state']
+            if state != username:
+                UserMsg = "Internal error, please contact the administrator"
+                LogMsg = "username and state different"
+                return json.dumps({'result':'error', 'user_msg':UserMsg, 'log_msg':LogMsg})
+            else:
+                return revoke_user(state)
+        else:
+            LogMsg = "the plugin was run with an unknown action '%s'"%action
+            return json.dumps({'result':'error', 'user_msg':UserMsg, 'log_msg':LogMsg})
 
 
 def main():
+    UserMsg = "Internal error, please contact the administrator"
     try:
         if len(sys.argv) == 2:
             print process_request(sys.argv[1])
         else:
-            print json.dumps({"error": "no_parameter"})
+            LogMsg = "the plugin was run without an action"
+            print json.dumps({'result':'error', 'user_msg':UserMsg, 'log_msg':LogMsg})
     except Exception, E:
         TraceBack = traceback.format_exc(),
-        print json.dumps({"error": "exception", "details": str(E), "trace": TraceBack})
+        LogMsg = "the plugin failed with %s - %s"%(str(E), TraceBack)
+        print json.dumps({'result':'error', 'user_msg':UserMsg, 'log_msg':LogMsg})
+        pass
 
 if __name__ == "__main__":
     main()
