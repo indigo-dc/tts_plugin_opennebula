@@ -16,6 +16,9 @@ import sqlite3
 def list_params():
     RequestParams = []
     ConfParams = [
+        # the following are the service.$id.plugin.$key parameter
+        # where key is one of the names following
+
         # URL of the XML-RPC API of the OpeNebula server
         {'name':'api_endpoint', 'type':'string', 'default':'http://localhost:2633/RPC2'},
         # User to access the API
