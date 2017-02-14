@@ -260,7 +260,7 @@ def process_request(request):
     else:
         config = jobject['conf_params']
         user_info = jobject['user_info']
-        user_group = config['user_group']
+        user_group = int(config['user_group'])
         user_prefix = config['user_prefix']
 
 
