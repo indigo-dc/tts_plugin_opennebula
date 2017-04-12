@@ -1,0 +1,19 @@
+{
+    "pkg" : {
+        "name" : "watts-plugin-opennebula",
+        "short_desc" : "WaTTS OpenNebula Plugin",
+        "long_desc" : "WaTTS Plugin for OpenNebula, dynamically adding users to OpenNebula",
+        "version" : "1.0.0",
+        "vendor" : "INDIGO DataCloud",
+        "maintainer" : "Bas Wegh <bas.wegh@kit.edu>"
+    },
+    "deps" : {
+        "arch" : ["python2"],
+        "deb" : ["python"],
+        "rpm" : ["python"]
+    },
+    "archive" : {
+        "name" : "tts_plugin_opennebula",
+        "targz" : "https://github.com/indigo-dc/tts_plugin_opennebula/archive/v1.0.0.tar.gz"
+    }
+}
