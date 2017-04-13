@@ -255,7 +255,7 @@ def process_request(request):
 
     action = jobject['action']
     if action == "parameter":
-        print list_params()
+        return list_params()
 
     else:
         config = jobject['conf_params']
